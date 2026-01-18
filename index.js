@@ -103,11 +103,11 @@ async function connectToWA() {
         connectToWA();
       }
     } else if (connection === 'open') {
-      console.log('✅ test-MD connected to WhatsApp');
+      console.log('✅ Senal-MD connected to WhatsApp');
 
-      const up = `test-MD connected ✅\n\nPREFIX: ${prefix}`;
+      const up = `Senal-MD connected ✅\n\nPREFIX: ${prefix}`;
       await test.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
-        image: { url: `https://github.com/testwpbot/test12/blob/main/images/Danuwa%20-%20MD.png?raw=true` },
+        image: { url: `https://raw.githubusercontent.com/SenalFF/senalmd/main/lib/senal-md.png?raw=true` },
         caption: up
       });
 
