@@ -1,15 +1,15 @@
 {
-  "name": "DANUWA-MD",
+  "name": "senal-MD",
   "version": "1.0.0",
   "description": "A Powerfull Whatsapp Bot",
   "main": "index.js",
   "scripts": {
     "start": "pm2 start index.js --deep-monitoring --attach --name DANUWA-MD",
-    "stop": "pm2 stop DANUWA-MD",
-    "restart": "pm2 restart DANUWA-MD"
+    "stop": "pm2 stop senal-MD",
+    "restart": "pm2 restart senal-MD"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "@whiskeysockets/baileys": "github:dew-coders/Dew-Baileys",
     "api-dylux": "^1.8.5",
     "axios": "^1.9.0",
     "browser-id3-writer": "^6.2.0",
