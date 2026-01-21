@@ -16,6 +16,7 @@
     "cheerio": "^1.0.0",
     "express": "latest",
     "ffmpeg": "^0.0.4",
+    "dotenv": "^17.2.3",
     "ffmpeg-static": "^5.2.0",
     "file_size_url": "^1.0.4",
     "fluent-ffmpeg": "^2.1.3",
