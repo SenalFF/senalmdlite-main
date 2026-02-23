@@ -45,7 +45,7 @@ cmd(
 
       const caption =
 `┏━━━━━━━━━━━━━━━━━━━━━┓
-┃   🎬 *Seanal MD | Cinesubz*   ┃
+┃   🎬 *Senal MD | Cinesubz*   ┃
 ┗━━━━━━━━━━━━━━━━━━━━━┛
 
 🎞️ *${d.title}*
@@ -71,7 +71,7 @@ ${castList}
 📥 *To get download links:*
 ➡️ Use: *.cdl ${d.post_id}*
 ━━━━━━━━━━━━━━━━━━━━━━━
-✨ *Powered by Seanal MD Bot*`;
+✨ *Powered by Senal MD Bot*`;
 
       await test.sendMessage(
         from,
