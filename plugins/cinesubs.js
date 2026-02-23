@@ -32,7 +32,7 @@ cmd(
 
       // 5. Build stylish message
       let msg = "┏━━━━━━━━━━━━━━━━━━━━┓\n";
-      msg += "┃  🎬 *Seanal MD | Cinesubz*  ┃\n";
+      msg += "┃  🎬 *Senal MD | Cinesubz*  ┃\n";
       msg += "┗━━━━━━━━━━━━━━━━━━━━┛\n\n";
       msg += `🔍 Results for: *${q}*\n`;
       msg += `📊 Found: *${data.results.length}* result(s)\n`;
@@ -46,7 +46,7 @@ cmd(
         msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
       });
 
-      msg += `\n✨ *Powered by Seanal MD Bot*`;
+      msg += `\n✨ *Powered by Senal MD Bot*`;
 
       // 7. Send the message
       await test.sendMessage(
