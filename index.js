@@ -44,31 +44,19 @@ const credsPath = path.join(__dirname, '/auth_info_baileys/creds.json');
 
 // ================= Bot Info =================
 const botName = "Senal MD";
-const chama = {
-  key: {
-    remoteJid: "status@broadcast",
-    participant: "0@s.whatsapp.net",
-    fromMe: false,
-    id: "META_AI_FAKE_ID_TS",
-  },
-  message: {
-    contactMessage: {
-      displayName: botName,
-      vcard: `BEGIN:VCARD
-VERSION:3.0
-N:${botName};;;;
-FN:${botName}
-ORG:Meta Platforms
-TEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002
-END:VCARD`,
-    },
-  },
-};
 
 // Helper: build a vcard string using botName
 function getBotVCard() {
-  return `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Meta Platforms;\nTEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002\nEND:VCARD`;
+  return `BEGIN:VCARD\nVERSION:3.0\nN:${botName};;;;\nFN:${botName}\nORG:Meta Platforms\nTEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002\nEND:VCARD`;
 }
+
+// chama — proper Baileys contacts payload (use this with sendMessage directly)
+const chama = {
+  contacts: {
+    displayName: botName,
+    contacts: [{ vcard: getBotVCard() }],
+  },
+};
 
 async function ensureSessionFile() {
   if (!fs.existsSync(credsPath)) {
