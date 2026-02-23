@@ -24,35 +24,21 @@ cmd({
   reply(`*⏳ Fetching movie info...*`);
 
   try {
-    // Fetch movie title from cinesubz API using post ID
-    let movieTitle = null;
-    try {
-      const infoRes = await axios.get(
-        `https://cinesubz-v3.vercel.app/api/player?post=${postId}`
-      );
-      // Try to get title from details API
-      if (infoRes.data && infoRes.data.iframe_url) {
-        // Extract URL from iframe and get details
-        const detailRes = await axios.get(
-          `https://cinesubz-v3.vercel.app/api/details?post_id=${postId}`
-        ).catch(() => null);
+    // Fetch info from your API
+    const infoRes = await axios.get(`${CINEDL_API}/info?post=${postId}`);
+    const { video_url } = infoRes.data;
 
-        if (detailRes?.data?.title) {
-          movieTitle = detailRes.data.title;
-        }
-      }
-    } catch (e) {
-      // Title fetch failed, continue without title
-    }
+    if (!video_url) throw new Error("No video URL found");
 
-    // Clean title for filename
-    const cleanTitle = movieTitle
-      ? movieTitle.replace(/[^\w\s.-]/gi, "").trim()
-      : `Movie_${postId}`;
+    // Extract filename from video_url
+    // e.g. "https://player1.sonic-cloud.online/CineSubz.com - Faster.2010.BrRip-720P.mp4"
+    // → "CineSubz.com - Faster.2010.BrRip-720P.mp4"
+    const fileName = decodeURIComponent(video_url.split("/").pop());
 
-    const fileName = `${cleanTitle}.mp4`;
+    // Extract movie title from filename (remove extension)
+    const movieTitle = fileName.replace(/\.[^/.]+$/, "");
 
-    reply(`*📥 Sending:* ${movieTitle || `Post ID: ${postId}`}\n_Please wait..._`);
+    reply(`*📥 Sending:* ${movieTitle}\n_Please wait..._`);
 
     await danuwa.sendMessage(from, {
       document: {
@@ -65,7 +51,7 @@ cmd({
 ┃   🎬 *Senal MD | Cinesubz*   ┃
 ┗━━━━━━━━━━━━━━━━━━━━━┛
 
-🎞️ *${movieTitle || `Post ID: ${postId}`}*
+🎞️ *${movieTitle}*
 
 ━━━━━━━━━━━━━━━━━━━━━━━
 ✨ *Powered by Senal MD Bot*`
