@@ -5,7 +5,7 @@ module.exports = {
   SESSION_ID: process.env.SESSION_ID,
   MONGODB_URI: process.env.MONGODB_URI,
   PREFIX: process.env.PREFIX || ".",
-  MODE: process.env.MODE || "public",
+  MODE: process.env.MODE || "private",
   OWNER_NUMBER: process.env.OWNER_NUMBER,
 
   // ===================== OTHER CONFIGS =====================
