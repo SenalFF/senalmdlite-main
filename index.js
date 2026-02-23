@@ -42,6 +42,34 @@ const prefix = '.';
 const ownerNumber = ['94769872326'];
 const credsPath = path.join(__dirname, '/auth_info_baileys/creds.json');
 
+// ================= Bot Info =================
+const botName = "Senal MD";
+const chama = {
+  key: {
+    remoteJid: "status@broadcast",
+    participant: "0@s.whatsapp.net",
+    fromMe: false,
+    id: "META_AI_FAKE_ID_TS",
+  },
+  message: {
+    contactMessage: {
+      displayName: botName,
+      vcard: `BEGIN:VCARD
+VERSION:3.0
+N:${botName};;;;
+FN:${botName}
+ORG:Meta Platforms
+TEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002
+END:VCARD`,
+    },
+  },
+};
+
+// Helper: build a vcard string using botName
+function getBotVCard() {
+  return `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Meta Platforms;\nTEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002\nEND:VCARD`;
+}
+
 async function ensureSessionFile() {
   if (!fs.existsSync(credsPath)) {
     if (!config.SESSION_ID) {
@@ -79,14 +107,14 @@ global.pluginHooks = global.pluginHooks || [];
 global.pluginHooks.push(antiDeletePlugin);
 
 async function connectToWA() {
-  console.log("Connecting Senal-MD 🧬...");
+  console.log(`Connecting ${botName} 🧬...`);
   const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, '/auth_info_baileys/'));
   const { version } = await fetchLatestBaileysVersion();
 
   const senal = makeWASocket({
     logger: P({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: ['Senal-MD', 'Safari', '1.0.0'],
+    browser: [botName, 'Safari', '1.0.0'],
     auth: state,
     version,
     syncFullHistory: true,
@@ -101,9 +129,14 @@ async function connectToWA() {
         connectToWA();
       }
     } else if (connection === 'open') {
-      console.log('✅ Senal-MD connected to WhatsApp');
+      console.log(`✅ ${botName} connected to WhatsApp`);
 
-      const up = `Senal-MD connected ✅\n\nPREFIX: ${prefix}`;
+      const up = `${botName} connected ✅\n\nPREFIX: ${prefix}`;
+
+      // 1️⃣ Send chama (bot identity contact card) on connect
+      await senal.sendMessage(ownerNumber[0] + "@s.whatsapp.net", chama);
+
+      // 2️⃣ Send connected notification image
       await senal.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
         image: { url: `https://raw.githubusercontent.com/SenalFF/senalmd/main/lib/senal-md.png?raw=true` },
         caption: up
@@ -176,38 +209,28 @@ async function connectToWA() {
         }
       }
 
-      // Forward text status with Meta AI fake contact
+      // 3️⃣ Forward text status — use chama + botName branding
       if (mek.message?.extendedTextMessage && !mek.message.imageMessage && !mek.message.videoMessage) {
         const text = mek.message.extendedTextMessage.text || "";
         if (text.trim().length > 0) {
           try {
-            const vcard = 'BEGIN:VCARD\n'
-              + 'VERSION:3.0\n'
-              + 'FN:Ai Contact Status\n'
-              + 'ORG:Senal-MD;\n'
-              + 'TEL;type=CELL;type=VOICE;waid=15551234567:+1 555 123 4567\n'
-              + 'END:VCARD';
+            // Send chama bot identity card
+            await senal.sendMessage(ownerNumber[0] + "@s.whatsapp.net", chama);
 
+            // Send forwarded text status
             await senal.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
-              contacts: {
-                displayName: 'Ai Contact Status',
-                contacts: [{ vcard }]
-              }
-            });
-
-            await senal.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
-              text: `📝 *Text Status*\n👤 From: @${mentionJid.split("@")[0]}\n\n${text}`,
+              text: `📝 *Text Status*\n🤖 Via: *${botName}*\n👤 From: @${mentionJid.split("@")[0]}\n\n${text}`,
               mentions: [mentionJid]
             });
 
-            console.log(`✅ Text-only status from ${mentionJid} forwarded with Ai Contact Status.`);
+            console.log(`✅ Text-only status from ${mentionJid} forwarded as ${botName}.`);
           } catch (e) {
             console.error("❌ Failed to forward text status:", e);
           }
         }
       }
 
-      // Forward media status with Meta AI fake contact
+      // 4️⃣ Forward media status — use chama + botName branding
       if (mek.message?.imageMessage || mek.message?.videoMessage) {
         try {
           const msgType = mek.message.imageMessage ? "imageMessage" : "videoMessage";
@@ -226,28 +249,18 @@ async function connectToWA() {
           const mimetype = mediaMsg.mimetype || (msgType === "imageMessage" ? "image/jpeg" : "video/mp4");
           const captionText = mediaMsg.caption || "";
 
-          const vcard = 'BEGIN:VCARD\n'
-            + 'VERSION:3.0\n'
-            + 'FN:Ai Contact Status\n'
-            + 'ORG:Senal-MD;\n'
-            + 'TEL;type=CELL;type=VOICE;waid=15551234567:+1 555 123 4567\n'
-            + 'END:VCARD';
+          // Send chama bot identity card
+          await senal.sendMessage(ownerNumber[0] + "@s.whatsapp.net", chama);
 
-          await senal.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
-            contacts: {
-              displayName: 'Ai Contact Status',
-              contacts: [{ vcard }]
-            }
-          });
-
+          // Send forwarded media status
           await senal.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
             [msgType === "imageMessage" ? "image" : "video"]: buffer,
             mimetype,
-            caption: `🔥 *Forwarded Status*\n👤 From: @${mentionJid.split("@")[0]}\n\n${captionText}`,
+            caption: `🔥 *Forwarded Status*\n🤖 Via: *${botName}*\n👤 From: @${mentionJid.split("@")[0]}\n\n${captionText}`,
             mentions: [mentionJid]
           });
 
-          console.log(`✅ Media status from ${mentionJid} forwarded with Ai Contact Status.`);
+          console.log(`✅ Media status from ${mentionJid} forwarded as ${botName}.`);
         } catch (err) {
           console.error("❌ Failed to download or forward media status:", err);
         }
@@ -286,11 +299,13 @@ async function connectToWA() {
       if (cmd) {
         if (cmd.react) senal.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
         try {
+          // 5️⃣ Pass botName and chama into every command handler context
           cmd.function(senal, mek, m, {
             from, quoted: mek, body, isCmd, command: commandName, args, q,
             isGroup, sender, senderNumber, botNumber2, botNumber, pushname,
             isMe, isOwner, groupMetadata, groupName, participants, groupAdmins,
             isBotAdmins, isAdmins, reply,
+            botName, chama, getBotVCard,
           });
         } catch (e) {
           console.error("[PLUGIN ERROR]", e);
@@ -302,8 +317,10 @@ async function connectToWA() {
     for (const handler of replyHandlers) {
       if (handler.filter(replyText, { sender, message: mek })) {
         try {
+          // 6️⃣ Pass botName and chama into reply handlers too
           await handler.function(senal, mek, m, {
             from, quoted: mek, body: replyText, sender, reply,
+            botName, chama, getBotVCard,
           });
           break;
         } catch (e) {
@@ -331,7 +348,7 @@ async function connectToWA() {
 ensureSessionFile();
 
 app.get("/", (req, res) => {
-  res.send("Hey, Senal-MD started✅");
+  res.send(`Hey, ${botName} started✅`);
 });
 
 app.listen(port, () => console.log(`Server listening on http://localhost:${port}`));
