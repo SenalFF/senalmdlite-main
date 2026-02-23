@@ -4,10 +4,13 @@ if (fs.existsSync('config.env')) require('dotenv').config({ path: './config.env'
 function convertToBool(text, fault = 'true') {
     return text === fault ? true : false;
 }
+
 module.exports = {
 SESSION_ID: process.env.SESSION_ID || "uxBlSa6I#pnn2YmZziK3_YHUiyztnwOmmP1j7c_JA3wFMAeFUPEg",
+
 ALIVE_IMG: process.env.ALIVE_IMG || "https://raw.githubusercontent.com/SenalFF/senalmd/main/lib/senal-md.png?raw=true",
-ALIVE_MSG: process.env.ALIVE_MSG || "════════════〔 🤖 SENAL MD 〕════════════
+
+ALIVE_MSG: process.env.ALIVE_MSG || `════════════〔 🤖 SENAL MD 〕════════════
 
 👋 Hello User!
 🧑‍💻 Developed & Maintained By : *Mr Senal*
@@ -16,10 +19,10 @@ ALIVE_MSG: process.env.ALIVE_MSG || "════════════〔 �
 🌐 Network         : Stable
 🚀 Ready for Commands!
 
-══════════════════════════════════════",
+══════════════════════════════════════`,
+
 MODE: process.env.MODE || "private",
-BOT_OWNER: '94769872326',  // Replace with the owner's phone number
-AUTO_STATUS_SEEN: 'true',
-AUTO_STATUS_REACT: 'true',
-
-
+BOT_OWNER: '94769872326',
+AUTO_STATUS_SEEN: convertToBool(process.env.AUTO_STATUS_SEEN || 'true'),
+AUTO_STATUS_REACT: convertToBool(process.env.AUTO_STATUS_REACT || 'true'),
+};
