@@ -7,7 +7,16 @@ function convertToBool(text, fault = 'true') {
 module.exports = {
 SESSION_ID: process.env.SESSION_ID || "uxBlSa6I#pnn2YmZziK3_YHUiyztnwOmmP1j7c_JA3wFMAeFUPEg",
 ALIVE_IMG: process.env.ALIVE_IMG || "https://raw.githubusercontent.com/SenalFF/senalmd/main/lib/senal-md.png?raw=true",
-ALIVE_MSG: process.env.ALIVE_MSG || "*Hello👋 Senal-MD Is Alive Now😍*",
+ALIVE_MSG: process.env.ALIVE_MSG || "════════════〔 🤖 SENAL MD 〕════════════
+
+👋 Hello User!
+🧑‍💻 Developed & Maintained By : *Mr Senal*
+⚙️ System Status  : ONLINE
+🔋 Performance     : Optimal
+🌐 Network         : Stable
+🚀 Ready for Commands!
+
+══════════════════════════════════════",
 MODE: process.env.MODE || "private",
 BOT_OWNER: '94769872326',  // Replace with the owner's phone number
 AUTO_STATUS_SEEN: 'true',
