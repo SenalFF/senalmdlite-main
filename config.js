@@ -6,7 +6,7 @@ function convertToBool(text, fault = 'true') {
 }
 
 module.exports = {
-SESSION_ID: process.env.SESSION_ID || "uxBlSa6I#pnn2YmZziK3_YHUiyztnwOmmP1j7c_JA3wFMAeFUPEg",
+SESSION_ID: process.env.SESSION_ID || "5FICATKC#CjGa3dwcRGNX0Mt0dsjznRMvGnASM-t2JYIFR-Ijwmg",
 
 ALIVE_IMG: process.env.ALIVE_IMG || "https://raw.githubusercontent.com/SenalFF/senalmd/main/lib/senal-md.png?raw=true",
 
