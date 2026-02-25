@@ -8,18 +8,15 @@ const {
   proto,
   generateWAMessageContent,
   generateWAMessage,
-  AnyMessageContent,
   prepareWAMessageMedia,
   areJidsSameUser,
   downloadContentFromMessage,
-  MessageRetryMap,
   generateForwardMessageContent,
   generateWAMessageFromContent,
   generateMessageID,
   makeInMemoryStore,
   jidDecode,
   fetchLatestBaileysVersion,
-  Browsers
 } = require('@whiskeysockets/baileys');
 
 const fs = require('fs');
@@ -80,6 +77,45 @@ const antiDeletePlugin = require('./plugins/antidelete.js');
 global.pluginHooks = global.pluginHooks || [];
 global.pluginHooks.push(antiDeletePlugin);
 
+// ================= Body Extractor =================
+// Handles all message types to reliably get the text body
+function extractBody(message) {
+  if (!message) return '';
+  const type = getContentType(message);
+  if (!type) return '';
+
+  const msg = message[type];
+  if (!msg) return '';
+
+  switch (type) {
+    case 'conversation':
+      return message.conversation || '';
+    case 'extendedTextMessage':
+      return msg.text || '';
+    case 'imageMessage':
+    case 'videoMessage':
+    case 'audioMessage':
+    case 'documentMessage':
+    case 'stickerMessage':
+      return msg.caption || '';
+    case 'buttonsResponseMessage':
+      return msg.selectedButtonId || '';
+    case 'listResponseMessage':
+      return msg.singleSelectReply?.selectedRowId || '';
+    case 'templateButtonReplyMessage':
+      return msg.selectedId || '';
+    case 'interactiveResponseMessage':
+      try {
+        const body = JSON.parse(msg.nativeFlowResponseMessage?.paramsJson || '{}');
+        return body.id || '';
+      } catch {
+        return '';
+      }
+    default:
+      return msg.text || msg.caption || '';
+  }
+}
+
 // ================= Connect to WhatsApp =================
 async function connectToWA() {
   if (isConnecting) return;
@@ -133,7 +169,7 @@ async function connectToWA() {
         });
         console.log("✅ Plugins loaded");
 
-        // ✅ Async IIFE — send alive image using axios (no URL fetch by Baileys)
+        // Send alive message via axios (avoids Baileys URL fetch timeout)
         (async () => {
           try {
             const aliveImgUrl = `https://raw.githubusercontent.com/SenalFF/senalmd/main/lib/senal-md.png`;
@@ -169,29 +205,34 @@ async function connectToWA() {
     conn.ev.on('creds.update', saveCreds);
 
     // ================= Handle Incoming Messages =================
-    conn.ev.on('messages.upsert', async ({ messages }) => {
+    conn.ev.on('messages.upsert', async ({ messages, type: upsertType }) => {
+      // Only handle notify-type upserts (real incoming messages)
+      if (upsertType !== 'notify') return;
+
       for (const msg of messages) {
         if (msg.messageStubType === 68) {
-          await conn.sendMessageAck(msg.key);
+          try { await conn.sendMessageAck(msg.key); } catch {}
         }
       }
 
       const mek = messages[0];
       if (!mek || !mek.message) return;
 
-      mek.message = getContentType(mek.message) === 'ephemeralMessage'
-        ? mek.message.ephemeralMessage.message
-        : mek.message;
+      // Unwrap ephemeral
+      if (getContentType(mek.message) === 'ephemeralMessage') {
+        mek.message = mek.message.ephemeralMessage.message;
+      }
+
+      // Unwrap viewOnceMessage
+      if (getContentType(mek.message) === 'viewOnceMessage') {
+        mek.message = Object.values(mek.message.viewOnceMessage.message)[0];
+      }
 
       // Plugin hooks
       if (global.pluginHooks) {
         for (const plugin of global.pluginHooks) {
           if (plugin.onMessage) {
-            try {
-              await plugin.onMessage(conn, mek);
-            } catch (e) {
-              console.log("onMessage error:", e);
-            }
+            try { await plugin.onMessage(conn, mek); } catch (e) { console.log("onMessage error:", e); }
           }
         }
       }
@@ -204,23 +245,15 @@ async function connectToWA() {
         if (config.AUTO_STATUS_SEEN === "true") {
           try {
             await conn.readMessages([mek.key]);
-            console.log(`[✓] Status seen: ${mek.key.id}`);
-          } catch (e) {
-            console.error("❌ Failed to mark status as seen:", e);
-          }
+          } catch (e) {}
         }
 
         if (config.AUTO_STATUS_REACT === "true" && mek.key.participant) {
           try {
-            const emojis = ['❤️','💸','😇','🍂','💥','💯','🔥','💫','💎','💗','🤍','🖤','👀','🙌','🙆','🚩','🥰','💐','😎','🤎','✅','🫀','🧡','😁','😄','🌸','🕊️','🌷','⛅','🌟','🗿','💜','💙','🌝','🖤','💚'];
+            const emojis = ['❤️','💸','😇','🍂','💥','💯','🔥','💫','💎','💗','🤍','🖤','👀','🙌','🙆','🚩','🥰','💐','😎','🤎','✅','🫀','🧡','😁','😄','🌸','🕊️','🌷','⛅','🌟','🗿','💜','💙','🌝','💚'];
             const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-            await conn.sendMessage(mek.key.participant, {
-              react: { text: randomEmoji, key: mek.key }
-            });
-            console.log(`[✓] Reacted to status of ${mek.key.participant} with ${randomEmoji}`);
-          } catch (e) {
-            console.error("❌ Failed to react to status:", e);
-          }
+            await conn.sendMessage(mek.key.participant, { react: { text: randomEmoji, key: mek.key } });
+          } catch (e) {}
         }
 
         if (mek.message?.extendedTextMessage && !mek.message.imageMessage && !mek.message.videoMessage) {
@@ -231,9 +264,7 @@ async function connectToWA() {
                 text: `📝 *Text Status*\n👤 From: @${mentionJid.split("@")[0]}\n\n${text}`,
                 mentions: [mentionJid]
               });
-            } catch (e) {
-              console.error("❌ Failed to forward text status:", e);
-            }
+            } catch (e) {}
           }
         }
 
@@ -241,68 +272,71 @@ async function connectToWA() {
           try {
             const msgType = mek.message.imageMessage ? "imageMessage" : "videoMessage";
             const mediaMsg = mek.message[msgType];
-            const stream = await downloadContentFromMessage(
-              mediaMsg,
-              msgType === "imageMessage" ? "image" : "video"
-            );
+            const stream = await downloadContentFromMessage(mediaMsg, msgType === "imageMessage" ? "image" : "video");
             let buffer = Buffer.from([]);
             for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
-
             const mimetype = mediaMsg.mimetype || (msgType === "imageMessage" ? "image/jpeg" : "video/mp4");
             const captionText = mediaMsg.caption || "";
-
             await conn.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
               [msgType === "imageMessage" ? "image" : "video"]: buffer,
               mimetype,
               caption: `📥 *Forwarded Status*\n👤 From: @${mentionJid.split("@")[0]}\n\n${captionText}`,
               mentions: [mentionJid]
             });
-          } catch (err) {
-            console.error("❌ Failed to download or forward media status:", err);
-          }
+          } catch (err) {}
         }
 
-        return;
+        return; // Don't process status messages as commands
       }
 
       // ================= Message Parsing =================
       const m = sms(conn, mek);
-      const type = getContentType(mek.message);
       const from = mek.key.remoteJid;
-      const body = type === 'conversation'
-        ? mek.message.conversation
-        : mek.message[type]?.text || mek.message[type]?.caption || '';
-
-      const isCmd = body.startsWith(prefix);
-      const commandName = isCmd ? body.slice(prefix.length).trim().split(" ")[0].toLowerCase() : '';
-      const args = body.trim().split(/ +/).slice(1);
-      const q = args.join(' ');
-
-      const sender = mek.key.fromMe ? conn.user.id : (mek.key.participant || mek.key.remoteJid);
-      const senderNumber = sender.split('@')[0];
       const isGroup = from.endsWith('@g.us');
+
+      // ✅ Proper sender detection
+      const sender = mek.key.fromMe
+        ? (conn.user.id.split(':')[0] + '@s.whatsapp.net')
+        : (mek.key.participant || mek.key.remoteJid);
+      const senderNumber = sender.split('@')[0];
+
       const botNumber = conn.user.id.split(':')[0];
-      const pushname = mek.pushName || 'Sin Nombre';
+      const botNumber2 = jidNormalizedUser(conn.user.id);
+      const pushname = mek.pushName || 'User';
       const isMe = botNumber.includes(senderNumber);
       const isOwner = ownerNumber.includes(senderNumber) || isMe;
-      const botNumber2 = await jidNormalizedUser(conn.user.id);
 
-      const groupMetadata = isGroup ? await conn.groupMetadata(from).catch(() => {}) : '';
-      const groupName = isGroup ? groupMetadata?.subject : '';
-      const participants = isGroup ? groupMetadata?.participants : '';
-      const groupAdmins = isGroup ? await getGroupAdmins(participants) : '';
+      // ✅ Robust body extraction covering all message types
+      const body = extractBody(mek.message);
+      const isCmd = body.startsWith(prefix);
+      const commandName = isCmd ? body.slice(prefix.length).trim().split(/\s+/)[0].toLowerCase() : '';
+      const args = body.trim().split(/\s+/).slice(isCmd ? 1 : 0);
+      const q = args.join(' ');
+
+      // Debug log — remove after confirming commands work
+      if (isCmd) console.log(`[CMD] from=${senderNumber} cmd=${commandName} body="${body}"`);
+
+      const groupMetadata = isGroup ? await conn.groupMetadata(from).catch(() => null) : null;
+      const groupName = groupMetadata?.subject || '';
+      const participants = groupMetadata?.participants || [];
+      const groupAdmins = isGroup && participants.length ? await getGroupAdmins(participants) : [];
       const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false;
       const isAdmins = isGroup ? groupAdmins.includes(sender) : false;
 
       const reply = (text) => conn.sendMessage(from, { text }, { quoted: mek });
 
       // ================= Command Execution =================
-      if (isCmd) {
+      if (isCmd && commandName) {
         const cmd = commands.find((c) =>
-          c.pattern === commandName || (c.alias && c.alias.includes(commandName))
+          c.pattern === commandName ||
+          (c.alias && Array.isArray(c.alias) && c.alias.includes(commandName))
         );
+
         if (cmd) {
-          if (cmd.react) conn.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+          console.log(`[EXEC] Running command: ${commandName}`);
+          if (cmd.react) {
+            conn.sendMessage(from, { react: { text: cmd.react, key: mek.key } }).catch(() => {});
+          }
           try {
             await cmd.function(conn, mek, m, {
               from, quoted: mek, body, isCmd, command: commandName, args, q,
@@ -311,19 +345,24 @@ async function connectToWA() {
               isBotAdmins, isAdmins, reply,
             });
           } catch (e) {
-            console.error("[PLUGIN ERROR]", e);
+            console.error(`[PLUGIN ERROR] ${commandName}:`, e);
+            reply(`⚠️ Error executing command: ${commandName}`).catch(() => {});
           }
+        } else {
+          console.log(`[CMD] Unknown command: ${commandName}`);
         }
       }
 
       // ================= Reply Handlers =================
-      for (const handler of replyHandlers) {
-        if (handler.filter(body, { sender, message: mek })) {
+      if (replyHandlers && replyHandlers.length) {
+        for (const handler of replyHandlers) {
           try {
-            await handler.function(conn, mek, m, {
-              from, quoted: mek, body, sender, reply,
-            });
-            break;
+            if (handler.filter(body, { sender, message: mek })) {
+              await handler.function(conn, mek, m, {
+                from, quoted: mek, body, sender, reply,
+              });
+              break;
+            }
           } catch (e) {
             console.log("Reply handler error:", e);
           }
@@ -336,11 +375,7 @@ async function connectToWA() {
       if (global.pluginHooks) {
         for (const plugin of global.pluginHooks) {
           if (plugin.onDelete) {
-            try {
-              await plugin.onDelete(conn, updates);
-            } catch (e) {
-              console.log("onDelete error:", e);
-            }
+            try { await plugin.onDelete(conn, updates); } catch (e) { console.log("onDelete error:", e); }
           }
         }
       }
