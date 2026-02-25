@@ -115,7 +115,7 @@ async function connectToWA() {
       await new Promise(resolve => setTimeout(resolve, delay));
     }
 
-    await connectDB();
+  
     const envConfig = await readEnv();
     const prefix = envConfig.PREFIX || ".";
 
