@@ -70,7 +70,7 @@ async function connectToWA() {
   const test = makeWASocket({
     logger: P({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: Browsers.macOS("Firefox"),
+    browser: Browsers("Chrome"),
     auth: state,
     version,
     syncFullHistory: true,
