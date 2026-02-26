@@ -27,7 +27,7 @@ const app = express();
 const port = process.env.PORT || 8000;
 
 const prefix = '.';
-const ownerNumber = ['94776121326'];
+const ownerNumber = ['94769872326'];
 const credsPath = path.join(__dirname, '/auth_info_baileys/creds.json');
 
 async function ensureSessionFile() {
@@ -89,7 +89,7 @@ async function connectToWA() {
 
       const up = `test-MD connected ✅\n\nPREFIX: ${prefix}`;
       await test.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
-        image: { url: `https://github.com/testwpbot/test12/blob/main/images/Danuwa%20-%20MD.png?raw=true` },
+        image: { url: `https://raw.githubusercontent.com/SenalFF/senalmd/refs/heads/main/system/IMG-20251229-WA0001.jpg` },
         caption: up
       });
 
