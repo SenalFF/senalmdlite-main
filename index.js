@@ -7,7 +7,7 @@ const {
   getContentType,
   fetchLatestBaileysVersion,
   Browsers,
-} = require("dew-baileys");
+} = require("@whiskeysockets/baileys");
 
 const fs = require("fs");
 const P = require("pino");
@@ -16,6 +16,8 @@ const axios = require("axios");
 const express = require("express");
 const config = require("./config");
 const { sms } = require("./lib/msg");
+const connectDB = require("./lib/mongodb");
+const { readEnv } = require("./lib/database");
 
 // ================= Owner =================
 const ownerNumber = [config.OWNER_NUMBER || "94769872326"];
@@ -115,7 +117,7 @@ async function connectToWA() {
       await new Promise(resolve => setTimeout(resolve, delay));
     }
 
-  
+    await connectDB();
     const envConfig = await readEnv();
     const prefix = envConfig.PREFIX || ".";
 
