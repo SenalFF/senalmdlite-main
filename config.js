@@ -5,9 +5,18 @@ function convertToBool(text, fault = 'true') {
     return text === fault ? true : false;
 }
 module.exports = {
-SESSION_ID: process.env.SESSION_ID || "5McUyI4D#NwF3TfNY78K0Yi-8rGD7EVES0Pzw7rSgKH7pNS40fd8",
-ALIVE_IMG: process.env.ALIVE_IMG || "https://github.com/DANUWA-MD/DANUWA-MD/blob/main/images/DANUWA-MD.png?raw=true",
-ALIVE_MSG: process.env.ALIVE_MSG || "*Hello👋 DANUWA-MD Is Alive Now😍*",
+SESSION_ID: process.env.SESSION_ID || "5FICATKC#CjGa3dwcRGNX0Mt0dsjznRMvGnASM-t2JYIFR-Ijwmg",
+ALIVE_IMG: process.env.ALIVE_IMG || "https://raw.githubusercontent.com/SenalFF/senalmd/refs/heads/main/system/IMG-20251229-WA0001.jpg?raw=true",
+ALIVE_MSG: process.env.ALIVE_MSG || "═══〔 🤖 SENAL MD 〕═══
+
+👋 Hello User!
+🧑‍💻 Developed By : *Mr Senal*
+⚙️ System Status  : ONLINE
+🔋 Performance     : Optimal
+🌐 Network          : Stable
+🚀 Ready for Commands!
+
+═══════════════════════",
 BOT_OWNER: '94774915917',  // Replace with the owner's phone number
 
 
