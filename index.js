@@ -105,15 +105,10 @@ async function connectToWA() {
 
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
 
-    // ✅ KEY FIX: fetchLatestBaileysVersion hits a dead URL in this fork
-    // Always use fallback so it never crashes here
-    let version = [2, 3000, 1023089470];
-    try {
-      const fetched = await fetchLatestBaileysVersion();
-      if (fetched?.version) version = fetched.version;
-    } catch {
-      console.log('⚠️  Version fetch failed — using fallback version (safe to ignore).');
-    }
+    // ✅ FIX 405: Skip fetchLatestBaileysVersion entirely — the fork fetches
+    // from a dead/outdated URL which returns a version WA now rejects with 405.
+    // Use a hardcoded version that is known to work.
+    const version = [2, 3000, 1023141551];
 
     console.log(`📦 WA version: ${version.join('.')}`);
     console.log(`🔑 Session loaded: ${!!state?.creds?.me}`);
@@ -127,7 +122,7 @@ async function connectToWA() {
     const conn = makeWASocket({
       logger: P({ level: 'silent' }),
       printQRInTerminal: false,
-      browser: Browsers('Chrome'),         // ✅ Dew-Baileys: single string arg
+      browser: Browsers('Firefox'),        // ✅ Firefox tends to get fewer 405s than Chrome
       auth: state,
       version,
       syncFullHistory: false,              // ✅ true causes memory crash on free hosts
