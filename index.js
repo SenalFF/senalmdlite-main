@@ -89,7 +89,7 @@ async function connectToWA() {
 
       const up = `test-MD connected ✅\n\nPREFIX: ${prefix}`;
       await test.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
-        image: { url: `https://raw.githubusercontent.com/SenalFF/senalmd/refs/heads/main/system/IMG-20251229-WA0001.jpg` },
+        image: { url: `https://raw.githubusercontent.com/SenalFF/senalmd/refs/heads/main/system/IMG-20251229-WA0001.jpg?raw=true` },
         caption: up
       });
 
