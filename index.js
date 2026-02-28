@@ -389,6 +389,7 @@ async function connectToWA() {
 }
 
 // ─── Start ────────────────────────────────────────────────────────────────────
+// ─── Start ────────────────────────────────────────────────────────────────────
 ensureSessionFile();
 
 app.get("/", (req, res) => {
@@ -396,14 +397,3 @@ app.get("/", (req, res) => {
 });
 
 app.listen(port, () => console.log(`Server listening on http://localhost:${port}`));
-```
-
----
-
-**Railway setup steps:**
-
-1. Push this code to your repo
-2. In Railway → Variables, add `RESET_SESSION=true`
-3. Deploy and watch logs — you'll see:
-```
-🔑 PAIRING CODE: ABCD-1234
