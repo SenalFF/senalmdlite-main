@@ -45,42 +45,63 @@ const credsPath = path.join(__dirname, '/auth_info_baileys/creds.json');
 let reconnectAttempts = 0;
 const MAX_RECONNECT = 5;
 
-async function ensureSessionFile() {
-  if (!fs.existsSync(credsPath)) {
-    if (!config.SESSION_ID) {
-      console.error('❌ SESSION_ID env variable is missing. Cannot restore session.');
-      process.exit(1);
-    }
-
-    console.log("🔄 creds.json not found. Downloading session from MEGA...");
-
-    const sessdata = config.SESSION_ID;
-    const filer = File.fromURL(`https://mega.nz/file/${sessdata}`);
-
-    filer.download((err, data) => {
-      if (err) {
-        console.error("❌ Failed to download session file from MEGA:", err);
-        process.exit(1);
-      }
-
-      fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
-      fs.writeFileSync(credsPath, data);
-      console.log("✅ Session downloaded and saved. Starting bot...");
-      setTimeout(() => {
-        connectToWA();
-      }, 2000);
-    });
-  } else {
-    setTimeout(() => {
-      connectToWA();
-    }, 1000);
-  }
-}
-
+// ─── Plugin Hooks ─────────────────────────────────────────────────────────────
 const antiDeletePlugin = require('./plugins/antidelete.js');
 global.pluginHooks = global.pluginHooks || [];
 global.pluginHooks.push(antiDeletePlugin);
 
+// ─── Session Setup ────────────────────────────────────────────────────────────
+async function ensureSessionFile() {
+  // Clear session if RESET_SESSION env is true
+  if (process.env.RESET_SESSION === 'true') {
+    console.log("🗑️ RESET_SESSION detected. Clearing old session...");
+    fs.rmSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true, force: true });
+  }
+
+  if (!fs.existsSync(credsPath)) {
+    // Try MEGA download if SESSION_ID is set
+    if (config.SESSION_ID) {
+      console.log("🔄 creds.json not found. Downloading session from MEGA...");
+      const sessdata = config.SESSION_ID;
+      const filer = File.fromURL(`https://mega.nz/file/${sessdata}`);
+
+      filer.download((err, data) => {
+        if (err) {
+          console.error("❌ Failed to download session from MEGA:", err.message);
+          console.log("📲 Will use pairing code instead...");
+          fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
+          setTimeout(() => connectToWA(), 1000);
+          return;
+        }
+
+        // Validate downloaded data is real JSON
+        try {
+          JSON.parse(data.toString());
+        } catch (e) {
+          console.error("❌ Downloaded session file is corrupted/invalid JSON.");
+          console.log("📲 Will use pairing code instead...");
+          fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
+          setTimeout(() => connectToWA(), 1000);
+          return;
+        }
+
+        fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
+        fs.writeFileSync(credsPath, data);
+        console.log("✅ Session downloaded and saved. Starting bot...");
+        setTimeout(() => connectToWA(), 2000);
+      });
+    } else {
+      console.log("⚠️ No SESSION_ID set. Will use pairing code...");
+      fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
+      setTimeout(() => connectToWA(), 1000);
+    }
+  } else {
+    console.log("✅ Session file found. Connecting...");
+    setTimeout(() => connectToWA(), 1000);
+  }
+}
+
+// ─── Main Connection ──────────────────────────────────────────────────────────
 async function connectToWA() {
   console.log("Connecting test-MD 🧬...");
 
@@ -95,6 +116,7 @@ async function connectToWA() {
   let version;
   try {
     ({ version } = await fetchLatestBaileysVersion());
+    console.log(`ℹ️ Using WA version: ${version.join('.')}`);
   } catch (e) {
     console.warn("⚠️ Could not fetch latest Baileys version, using fallback.");
     version = [2, 3000, 1015901307];
@@ -102,7 +124,7 @@ async function connectToWA() {
 
   const test = makeWASocket({
     logger: P({ level: 'silent' }),
-    printQRInTerminal: true,
+    printQRInTerminal: false,
     browser: ["test-MD", "Firefox", "1.0.0"],
     auth: state,
     version,
@@ -111,11 +133,31 @@ async function connectToWA() {
     generateHighQualityLinkPreview: true,
   });
 
+  // ─── Pairing Code for Railway/Cloud ─────────────────────────────────────
+  if (!test.authState.creds.registered) {
+    const phoneNumber = ownerNumber[0].replace(/[^0-9]/g, '');
+    console.log(`📲 Not registered. Requesting pairing code for +${phoneNumber}...`);
+    setTimeout(async () => {
+      try {
+        const code = await test.requestPairingCode(phoneNumber);
+        console.log(`\n╔════════════════════════════════╗`);
+        console.log(`║  🔑 PAIRING CODE: ${code}        ║`);
+        console.log(`╚════════════════════════════════╝\n`);
+        console.log(`👉 WhatsApp → Linked Devices → Link a Device → Link with Phone Number`);
+        console.log(`👉 Enter the code shown above`);
+      } catch (e) {
+        console.error("❌ Failed to get pairing code:", e.message);
+      }
+    }, 3000);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ─── Connection Events ────────────────────────────────────────────────────
   test.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      console.log("📱 QR Code received (session may be invalid):");
+      console.log("📱 QR Code (scan if pairing code doesn't work):");
       qrcode.generate(qr, { small: true });
     }
 
@@ -131,11 +173,13 @@ async function connectToWA() {
           console.log(`🔄 Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT} in 5s...`);
           setTimeout(connectToWA, 5000);
         } else {
-          console.error("🚫 Max reconnect attempts reached. Exiting.");
+          console.error("🚫 Max reconnect attempts reached. Clearing session and restarting...");
+          fs.rmSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true, force: true });
           process.exit(1);
         }
       } else {
-        console.log("🔒 Logged out. Please re-link your session.");
+        console.log("🔒 Logged out. Clearing session...");
+        fs.rmSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true, force: true });
         process.exit(1);
       }
 
@@ -167,6 +211,7 @@ async function connectToWA() {
 
   test.ev.on('creds.update', saveCreds);
 
+  // ─── Message Handler ──────────────────────────────────────────────────────
   test.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
       if (msg.messageStubType === 68) {
@@ -176,10 +221,12 @@ async function connectToWA() {
 
     const mek = messages[0];
     if (!mek || !mek.message) return;
+
     mek.message = getContentType(mek.message) === 'ephemeralMessage'
       ? mek.message.ephemeralMessage.message
       : mek.message;
 
+    // Plugin hooks
     if (global.pluginHooks) {
       for (const plugin of global.pluginHooks) {
         if (plugin.onMessage) {
@@ -192,7 +239,7 @@ async function connectToWA() {
       }
     }
 
-    // ─── Status Handler ───────────────────────────────────────────────────────
+    // ─── Status Handler ─────────────────────────────────────────────────────
     if (mek.key?.remoteJid === 'status@broadcast') {
       const senderJid = mek.key.participant || mek.key.remoteJid || "unknown@s.whatsapp.net";
       const mentionJid = senderJid.includes("@s.whatsapp.net") ? senderJid : senderJid + "@s.whatsapp.net";
@@ -227,7 +274,7 @@ async function connectToWA() {
               text: `📝 *Text Status*\n👤 From: @${mentionJid.split("@")[0]}\n\n${text}`,
               mentions: [mentionJid]
             });
-            console.log(`✅ Text-only status from ${mentionJid} forwarded.`);
+            console.log(`✅ Text status from ${mentionJid} forwarded.`);
           } catch (e) {
             console.error("❌ Failed to forward text status:", e);
           }
@@ -256,13 +303,13 @@ async function connectToWA() {
           });
           console.log(`✅ Media status from ${mentionJid} forwarded.`);
         } catch (err) {
-          console.error("❌ Failed to download or forward media status:", err);
+          console.error("❌ Failed to forward media status:", err);
         }
       }
 
-      return; // stop processing status messages as commands
+      return;
     }
-    // ─────────────────────────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────────────
 
     const m = sms(test, mek);
     const type = getContentType(mek.message);
@@ -325,6 +372,7 @@ async function connectToWA() {
     }
   });
 
+  // ─── Delete Handler ───────────────────────────────────────────────────────
   test.ev.on('messages.update', async (updates) => {
     if (global.pluginHooks) {
       for (const plugin of global.pluginHooks) {
@@ -340,6 +388,7 @@ async function connectToWA() {
   });
 }
 
+// ─── Start ────────────────────────────────────────────────────────────────────
 ensureSessionFile();
 
 app.get("/", (req, res) => {
@@ -347,3 +396,14 @@ app.get("/", (req, res) => {
 });
 
 app.listen(port, () => console.log(`Server listening on http://localhost:${port}`));
+```
+
+---
+
+**Railway setup steps:**
+
+1. Push this code to your repo
+2. In Railway → Variables, add `RESET_SESSION=true`
+3. Deploy and watch logs — you'll see:
+```
+🔑 PAIRING CODE: ABCD-1234
