@@ -16,8 +16,7 @@ const {
   generateMessageID,
   makeInMemoryStore,
   jidDecode,
-  fetchLatestBaileysVersion,
-  Browsers,
+ fetchLatestBaileysVersion,
 } = require('@whiskeysockets/baileys');
 
 const fs = require('fs');
@@ -122,7 +121,7 @@ async function connectToWA() {
   const test = makeWASocket({
     logger: P({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: Browsers.macOS("Firefox"),
+    browser: ['Mac OS', 'Firefox', '14.4.1'],
     auth: state,
     version,
     syncFullHistory: true,
