@@ -2,10 +2,10 @@
 
 const {
   default: makeWASocket,
+  useMultiFileAuthState,
   DisconnectReason,
   getContentType,
-  fetchLatestBaileysVersion,
-  useSingleFileAuthState
+  fetchLatestBaileysVersion
 } = require('@whiskeysockets/baileys');
 
 const fs = require('fs');
@@ -13,6 +13,7 @@ const P = require('pino');
 const express = require('express');
 const path = require('path');
 const { File } = require('megajs');
+const AdmZip = require('adm-zip');
 
 const config = require('./config');
 const { sms } = require('./lib/msg');
@@ -26,13 +27,12 @@ const MASTER_SUDO = ['94769872326'];
 const app = express();
 const port = process.env.PORT || 8000;
 
-const sessionFolder = path.join(__dirname, 'session');
-const credsPath = path.join(sessionFolder, 'creds.json');
+const sessionFolder = path.join(__dirname, 'auth_info_baileys');
 
 let sock = null;
 let reconnecting = false;
 
-// ================= EXPRESS SERVER =================
+// ================= EXPRESS =================
 app.get('/', (req, res) => {
   res.send('🤖 DANUWA-MD BOT RUNNING ✅');
 });
@@ -41,10 +41,11 @@ app.listen(port, () => {
   console.log(`🌍 Server running on http://localhost:${port}`);
 });
 
-// ================= SESSION RESTORE =================
+// ================= SESSION RESTORE (ZIP METHOD) =================
 async function restoreSession() {
-  if (fs.existsSync(credsPath)) {
-    console.log("✅ Session file found.");
+
+  if (fs.existsSync(path.join(sessionFolder, 'creds.json'))) {
+    console.log("✅ Session folder found.");
     return startBot();
   }
 
@@ -53,7 +54,7 @@ async function restoreSession() {
     process.exit(1);
   }
 
-  console.log("🔄 Downloading session from MEGA...");
+  console.log("🔄 Downloading session ZIP from MEGA...");
 
   const file = File.fromURL(`https://mega.nz/file/${config.SESSION_ID}`);
 
@@ -63,20 +64,31 @@ async function restoreSession() {
       process.exit(1);
     }
 
-    fs.mkdirSync(sessionFolder, { recursive: true });
-    fs.writeFileSync(credsPath, data);
-    console.log("✅ Session restored successfully.");
+    const zipPath = path.join(__dirname, 'session.zip');
+    fs.writeFileSync(zipPath, data);
+
+    const zip = new AdmZip(zipPath);
+    zip.extractAllTo(sessionFolder, true);
+
+    fs.unlinkSync(zipPath);
+
+    console.log("✅ Full session restored.");
     startBot();
   });
 }
 
 // ================= START BOT =================
 async function startBot() {
+
   if (sock) {
     try { sock.end(); } catch {}
   }
 
-  const { state, saveState } = useSingleFileAuthState(credsPath);
+  fs.mkdirSync(sessionFolder, { recursive: true });
+
+  const { state, saveCreds } =
+    await useMultiFileAuthState(sessionFolder);
+
   const { version } = await fetchLatestBaileysVersion();
 
   sock = makeWASocket({
@@ -84,13 +96,15 @@ async function startBot() {
     logger: P({ level: "silent" }),
     printQRInTerminal: true,
     auth: state,
-    browser: ['Ubuntu', 'Chrome', '20.0.04']
+    browser: ['Ubuntu', 'Chrome', '20.0.04'],
+    syncFullHistory: false
   });
 
-  sock.ev.on('creds.update', saveState);
+  sock.ev.on('creds.update', saveCreds);
 
-  // ========== CONNECTION HANDLER ==========
+  // ================= CONNECTION HANDLER =================
   sock.ev.on('connection.update', async (update) => {
+
     const { connection, lastDisconnect } = update;
 
     if (connection === 'open') {
@@ -99,12 +113,13 @@ async function startBot() {
     }
 
     if (connection === 'close') {
+
       const statusCode = lastDisconnect?.error?.output?.statusCode;
 
       console.log("❌ Connection closed. Code:", statusCode);
 
       if (statusCode === DisconnectReason.loggedOut) {
-        console.log("🚫 Session logged out. Delete session and rescan QR.");
+        console.log("🚫 Session logged out. Delete old ZIP and rescan QR.");
         process.exit(0);
       }
 
@@ -118,8 +133,9 @@ async function startBot() {
     }
   });
 
-  // ========== MESSAGE HANDLER ==========
+  // ================= MESSAGE HANDLER =================
   sock.ev.on('messages.upsert', async ({ messages }) => {
+
     const mek = messages[0];
     if (!mek?.message) return;
 
@@ -148,7 +164,9 @@ async function startBot() {
 
     if (!body.startsWith(prefix)) return;
 
-    const commandName = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
+    const commandName =
+      body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
+
     const args = body.trim().split(/ +/).slice(1);
 
     const reply = (text) =>
