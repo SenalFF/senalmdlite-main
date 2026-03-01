@@ -111,7 +111,7 @@ async function connectToWA() {
   const ishan = makeWASocket({
     logger: P({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: Browsers.macOS("Firefox"),
+    browser: ['Mac OS', 'Firefox', '14.4.1'],
     auth: state,
     version,
     syncFullHistory: true,
