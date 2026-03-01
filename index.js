@@ -7,7 +7,6 @@ const {
   proto,
   generateWAMessageContent,
   generateWAMessage,
-  AnyMessageContent,
   prepareWAMessageMedia,
   areJidsSameUser,
   downloadContentFromMessage,
@@ -18,6 +17,7 @@ const {
   makeInMemoryStore,
   jidDecode,
   fetchLatestBaileysVersion,
+  Browsers,
 } = require('@whiskeysockets/baileys');
 
 const fs = require('fs');
@@ -41,7 +41,9 @@ const port = process.env.PORT || 8000;
 const prefix = '.';
 const ownerNumber = ['94769872326'];
 const credsPath = path.join(__dirname, '/auth_info_baileys/creds.json');
+const authDir = path.join(__dirname, '/auth_info_baileys/');
 
+// ─── Reconnect State ──────────────────────────────────────────────────────────
 let reconnectAttempts = 0;
 const MAX_RECONNECT = 5;
 
@@ -52,47 +54,40 @@ global.pluginHooks.push(antiDeletePlugin);
 
 // ─── Session Setup ────────────────────────────────────────────────────────────
 async function ensureSessionFile() {
-  // Clear session if RESET_SESSION env is true
+  // If RESET_SESSION=true in Railway env, wipe old broken session
   if (process.env.RESET_SESSION === 'true') {
     console.log("🗑️ RESET_SESSION detected. Clearing old session...");
-    fs.rmSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true, force: true });
+    fs.rmSync(authDir, { recursive: true, force: true });
   }
 
+  fs.mkdirSync(authDir, { recursive: true });
+
   if (!fs.existsSync(credsPath)) {
-    // Try MEGA download if SESSION_ID is set
-    if (config.SESSION_ID) {
+    if (config.SESSION_ID && config.SESSION_ID.trim() !== '') {
       console.log("🔄 creds.json not found. Downloading session from MEGA...");
-      const sessdata = config.SESSION_ID;
-      const filer = File.fromURL(`https://mega.nz/file/${sessdata}`);
+      const filer = File.fromURL(`https://mega.nz/file/${config.SESSION_ID}`);
 
       filer.download((err, data) => {
         if (err) {
-          console.error("❌ Failed to download session from MEGA:", err.message);
-          console.log("📲 Will use pairing code instead...");
-          fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
+          console.error("❌ MEGA download failed:", err.message);
+          console.log("📲 No session. Will use pairing code...");
           setTimeout(() => connectToWA(), 1000);
           return;
         }
 
-        // Validate downloaded data is real JSON
+        // Validate it's real JSON before saving
         try {
           JSON.parse(data.toString());
+          fs.writeFileSync(credsPath, data);
+          console.log("✅ Session downloaded and saved. Connecting...");
         } catch (e) {
-          console.error("❌ Downloaded session file is corrupted/invalid JSON.");
-          console.log("📲 Will use pairing code instead...");
-          fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
-          setTimeout(() => connectToWA(), 1000);
-          return;
+          console.error("❌ MEGA session file is corrupted (not valid JSON). Using pairing code...");
         }
 
-        fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
-        fs.writeFileSync(credsPath, data);
-        console.log("✅ Session downloaded and saved. Starting bot...");
         setTimeout(() => connectToWA(), 2000);
       });
     } else {
       console.log("⚠️ No SESSION_ID set. Will use pairing code...");
-      fs.mkdirSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true });
       setTimeout(() => connectToWA(), 1000);
     }
   } else {
@@ -107,9 +102,9 @@ async function connectToWA() {
 
   let state, saveCreds;
   try {
-    ({ state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, '/auth_info_baileys/')));
+    ({ state, saveCreds } = await useMultiFileAuthState(authDir));
   } catch (e) {
-    console.error("❌ Failed to load auth state:", e);
+    console.error("❌ Failed to load auth state:", e.message);
     process.exit(1);
   }
 
@@ -118,37 +113,45 @@ async function connectToWA() {
     ({ version } = await fetchLatestBaileysVersion());
     console.log(`ℹ️ Using WA version: ${version.join('.')}`);
   } catch (e) {
-    console.warn("⚠️ Could not fetch latest Baileys version, using fallback.");
+    console.warn("⚠️ Could not fetch WA version, using fallback.");
     version = [2, 3000, 1015901307];
   }
 
+  // ✅ Browsers.macOS IS valid in this Baileys version (confirmed from source)
+  // Browsers.macOS(browser) => ['Mac OS', browser, '14.4.1']
   const test = makeWASocket({
     logger: P({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: ["test-MD", "Firefox", "1.0.0"],
+    browser: Browsers.macOS("Firefox"),
     auth: state,
     version,
     syncFullHistory: true,
     markOnlineOnConnect: true,
     generateHighQualityLinkPreview: true,
+    // DO NOT set mobile: true — it throws loggedOut error in this Baileys version
   });
 
-  // ─── Pairing Code for Railway/Cloud ─────────────────────────────────────
-  if (!test.authState.creds.registered) {
+  // ─── Pairing Code (for Railway / no QR access) ────────────────────────────
+  const isRegistered = test.authState.creds.registered;
+  console.log(`ℹ️ Session registered: ${isRegistered}`);
+
+  if (!isRegistered) {
     const phoneNumber = ownerNumber[0].replace(/[^0-9]/g, '');
-    console.log(`📲 Not registered. Requesting pairing code for +${phoneNumber}...`);
+    console.log(`📲 Requesting pairing code for +${phoneNumber}...`);
     setTimeout(async () => {
       try {
         const code = await test.requestPairingCode(phoneNumber);
-        console.log(`\n╔════════════════════════════════╗`);
-        console.log(`║  🔑 PAIRING CODE: ${code}        ║`);
-        console.log(`╚════════════════════════════════╝\n`);
+        console.log(`\n╔══════════════════════════════════╗`);
+        console.log(`║   🔑 PAIRING CODE: ${code}   ║`);
+        console.log(`╚══════════════════════════════════╝\n`);
         console.log(`👉 WhatsApp → Linked Devices → Link a Device → Link with Phone Number`);
-        console.log(`👉 Enter the code shown above`);
+        console.log(`👉 Enter the code above to connect`);
       } catch (e) {
-        console.error("❌ Failed to get pairing code:", e.message);
+        console.error("❌ Pairing code request failed:", e.message);
       }
     }, 3000);
+  } else {
+    console.log("ℹ️ Already registered. Skipping pairing code.");
   }
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -156,35 +159,60 @@ async function connectToWA() {
   test.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
+    // Show QR as fallback in case pairing code fails
     if (qr) {
-      console.log("📱 QR Code (scan if pairing code doesn't work):");
+      console.log("📱 QR Code (fallback - scan if pairing code doesn't work):");
       qrcode.generate(qr, { small: true });
     }
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-      console.log(`❌ Connection closed. Code: ${statusCode}, Reconnect: ${shouldReconnect}`);
+      // ── DisconnectReason codes from actual Baileys source ──
+      // 401 = loggedOut
+      // 403 = forbidden
+      // 408 = connectionLost / timedOut
+      // 411 = multideviceMismatch
+      // 428 = connectionClosed
+      // 440 = connectionReplaced
+      // 500 = badSession
+      // 503 = unavailableService
+      // 515 = restartRequired
 
-      if (shouldReconnect) {
+      console.log(`❌ Connection closed. Code: ${statusCode}`);
+
+      if (statusCode === DisconnectReason.loggedOut || statusCode === 403) {
+        // Logged out or forbidden — clear session and restart fresh
+        console.log("🔒 Logged out or forbidden. Clearing session...");
+        fs.rmSync(authDir, { recursive: true, force: true });
+        process.exit(1);
+
+      } else if (statusCode === DisconnectReason.badSession || statusCode === 500) {
+        // Bad/corrupted session — clear and restart
+        console.log("💥 Bad session detected. Clearing session...");
+        fs.rmSync(authDir, { recursive: true, force: true });
+        process.exit(1);
+
+      } else if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
+        // Restart required — reconnect immediately without counting attempts
+        console.log("🔄 Restart required by server. Reconnecting now...");
+        setTimeout(connectToWA, 1000);
+
+      } else {
+        // connectionClosed / connectionLost / timedOut / etc — retry with limit
         if (reconnectAttempts < MAX_RECONNECT) {
           reconnectAttempts++;
           console.log(`🔄 Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT} in 5s...`);
           setTimeout(connectToWA, 5000);
         } else {
           console.error("🚫 Max reconnect attempts reached. Clearing session and restarting...");
-          fs.rmSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true, force: true });
+          fs.rmSync(authDir, { recursive: true, force: true });
           process.exit(1);
         }
-      } else {
-        console.log("🔒 Logged out. Clearing session...");
-        fs.rmSync(path.join(__dirname, '/auth_info_baileys/'), { recursive: true, force: true });
-        process.exit(1);
       }
 
     } else if (connection === 'open') {
-      reconnectAttempts = 0;
+      reconnectAttempts = 0; // reset counter on successful connect
       console.log('✅ test-MD connected to WhatsApp');
 
       const up = `test-MD connected ✅\n\nPREFIX: ${prefix}`;
@@ -239,7 +267,7 @@ async function connectToWA() {
       }
     }
 
-    // ─── Status Handler ─────────────────────────────────────────────────────
+    // ─── Status Handler ────────────────────────────────────────────────────
     if (mek.key?.remoteJid === 'status@broadcast') {
       const senderJid = mek.key.participant || mek.key.remoteJid || "unknown@s.whatsapp.net";
       const mentionJid = senderJid.includes("@s.whatsapp.net") ? senderJid : senderJid + "@s.whatsapp.net";
@@ -255,7 +283,7 @@ async function connectToWA() {
 
       if (config.AUTO_STATUS_REACT === "true" && mek.key.participant) {
         try {
-          const emojis = ['❤️', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '💜', '💙', '🌝', '🖤', '💚'];
+          const emojis = ['❤️','💸','😇','🍂','💥','💯','🔥','💫','💎','💗','🤍','🖤','👀','🙌','🙆','🚩','🥰','💐','😎','🤎','✅','🫀','🧡','😁','😄','🌸','🕊️','🌷','⛅','🌟','🗿','💜','💙','🌝','🖤','💚'];
           const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
           await test.sendMessage(mek.key.participant, {
             react: { text: randomEmoji, key: mek.key }
@@ -307,9 +335,9 @@ async function connectToWA() {
         }
       }
 
-      return;
+      return; // don't process status messages as commands
     }
-    // ───────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────────
 
     const m = sms(test, mek);
     const type = getContentType(mek.message);
@@ -388,7 +416,6 @@ async function connectToWA() {
   });
 }
 
-// ─── Start ────────────────────────────────────────────────────────────────────
 // ─── Start ────────────────────────────────────────────────────────────────────
 ensureSessionFile();
 
