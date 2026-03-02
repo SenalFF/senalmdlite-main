@@ -9,7 +9,7 @@
     "restart": "pm2 restart senal-MD"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "github:dew-coders/Dew-Baileys",
+    "@whiskeysockets/baileys": "latest",
     "dew-baileys": "*",
     "api-dylux": "^1.8.5",
     "axios": "^1.9.0",
