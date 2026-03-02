@@ -128,14 +128,15 @@ async function connectToWA() {
     const { version } = await fetchLatestBaileysVersion();
 
     const conn = makeWASocket({
-      logger: P({ level: "silent" }),
-      printQRInTerminal: false,
-      browser: ["Ubuntu", "Firefox", "20.0.04"],
-      syncFullHistory: true,
-      auth: state,
-      version,
-      markOnlineOnConnect: true,
-      syncFullHistory: false,
+  logger: P({ level: "silent" }),
+  printQRInTerminal: false,
+  browser: ["Ubuntu", "Firefox", "20.0.04"],
+  auth: state,
+  version,
+  markOnlineOnConnect: true,
+  syncFullHistory: false,
+  retryRequestDelayMs: 2000,  // Add this
+  maxMsgRetryCount: 5,
     });
 
     // ================= Connection Updates =================
