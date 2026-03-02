@@ -54,31 +54,27 @@ if (!fs.existsSync(credsFile)) {
     console.log("❌ Please add your SESSION_ID in .env!");
     process.exit(1);
   }
-  
+
   const { File } = require("megajs");
   const sessdata = config.SESSION_ID;
-  
+
   try {
     const file = File.fromURL(`https://mega.nz/file/${sessdata}`);
     const writeStream = fs.createWriteStream(credsFile);
-    
+
     file.download()
       .on("finish", () => {
         console.log("✅ Session downloaded successfully");
       })
       .on("error", (err) => {
         console.error("❌ Session download failed:", err.message);
-        if (fs.existsSync(credsFile)) {
-          fs.unlinkSync(credsFile);
-        }
+        if (fs.existsSync(credsFile)) fs.unlinkSync(credsFile);
         process.exit(1);
       })
       .pipe(writeStream)
       .on("error", (err) => {
         console.error("❌ Session file write failed:", err.message);
-        if (fs.existsSync(credsFile)) {
-          fs.unlinkSync(credsFile);
-        }
+        if (fs.existsSync(credsFile)) fs.unlinkSync(credsFile);
         process.exit(1);
       });
   } catch (err) {
@@ -92,35 +88,36 @@ const app = express();
 const port = process.env.PORT || 8000;
 
 app.get("/", (req, res) => res.send("Hey, Senal MD started ✅"));
-
 app.listen(port, () => console.log(`🌐 Server listening on http://localhost:${port}`));
 
-// ================= Reconnection State =================
-let retryCount = 0;
-const maxRetries = 5;
-const baseDelay = 3000; // 3 seconds
-
-// ================= Connect to WhatsApp =================
-async function connectToWA() {
-  try {
-    // Prevent too many reconnection attempts
-    if (retryCount > maxRetries) {
-      console.error(`❌ Max reconnection attempts (${maxRetries}) reached. Please check your configuration.`);
-      process.exit(1);
-    }
-
-    if (retryCount > 0) {
-      const delay = baseDelay * Math.pow(2, retryCount - 1); // Exponential backoff
-      console.log(`⏳ Reconnecting in ${delay / 1000}s (attempt ${retryCount}/${maxRetries})...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-
-    const envConfig = {
+// ================= ENV Config (GLOBAL SCOPE) =================
+// ✅ FIX: Defined globally so prefix is accessible inside messages.upsert
+const envConfig = {
   PREFIX: process.env.PREFIX || config.PREFIX || ".",
   ALIVE_MSG: process.env.ALIVE_MSG || config.ALIVE_MSG || null,
   ALIVE_IMG: process.env.ALIVE_IMG || config.ALIVE_IMG || null,
 };
-    const prefix = envConfig.PREFIX || ".";
+const prefix = envConfig.PREFIX || ".";
+console.log(`🔧 Prefix set to: "${prefix}"`);
+
+// ================= Reconnection State =================
+let retryCount = 0;
+const maxRetries = 5;
+const baseDelay = 3000;
+
+// ================= Connect to WhatsApp =================
+async function connectToWA() {
+  try {
+    if (retryCount > maxRetries) {
+      console.error(`❌ Max reconnection attempts (${maxRetries}) reached.`);
+      process.exit(1);
+    }
+
+    if (retryCount > 0) {
+      const delay = baseDelay * Math.pow(2, retryCount - 1);
+      console.log(`⏳ Reconnecting in ${delay / 1000}s (attempt ${retryCount}/${maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
 
     console.log("⏳ Connecting Senal MD BOT...");
 
@@ -128,27 +125,27 @@ async function connectToWA() {
     const { version } = await fetchLatestBaileysVersion();
 
     const conn = makeWASocket({
-  logger: P({ level: "silent" }),
-  printQRInTerminal: false,
-  browser: ["Ubuntu", "Firefox", "20.0.04"],
-  auth: state,
-  version,
-  markOnlineOnConnect: true,
-  syncFullHistory: false,
-  retryRequestDelayMs: 2000,  // Add this
-  maxMsgRetryCount: 5,
+      logger: P({ level: "silent" }),
+      printQRInTerminal: false,
+      browser: ["Ubuntu", "Firefox", "20.0.04"],
+      auth: state,
+      version,
+      markOnlineOnConnect: true,
+      syncFullHistory: false,
+      retryRequestDelayMs: 2000,
+      maxMsgRetryCount: 5,
     });
 
     // ================= Connection Updates =================
     conn.ev.on("connection.update", (update) => {
-      const { connection, lastDisconnect, qr } = update;
+      const { connection, lastDisconnect } = update;
 
       if (connection === "connecting") {
         console.log("📡 Attempting to connect...");
       } else if (connection === "close") {
         const shouldReconnect =
           lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        
+
         if (shouldReconnect) {
           retryCount++;
           console.log(`⚠️ Connection closed. Error:`, lastDisconnect?.error);
@@ -157,9 +154,8 @@ async function connectToWA() {
           console.log("❌ Logged out from WhatsApp");
           process.exit(0);
         }
-
       } else if (connection === "open") {
-        retryCount = 0; // Reset retry counter on successful connection
+        retryCount = 0;
         console.log("✅ Bot connected to WhatsApp");
         console.log("🔌 Connection is stable");
 
@@ -167,7 +163,6 @@ async function connectToWA() {
         try {
           const plugins = fs.readdirSync("./plugins/");
           let loadedCount = 0;
-          
           plugins.forEach((plugin) => {
             if (path.extname(plugin).toLowerCase() === ".js") {
               try {
@@ -178,7 +173,6 @@ async function connectToWA() {
               }
             }
           });
-          
           console.log(`✅ Plugins loaded (${loadedCount}/${plugins.length})`);
         } catch (err) {
           console.error("❌ Error reading plugins directory:", err.message);
@@ -194,14 +188,12 @@ ORG:Meta Platforms
 TEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002
 END:VCARD`;
 
-        // ✅ Async IIFE — needed because connection.update callback is not async
         (async () => {
           try {
             let imageBuffer = null;
 
             if (aliveImg) {
               if (aliveImg.startsWith("http")) {
-                // Remote URL — use axios for reliable fetching
                 try {
                   const response = await axios.get(aliveImg, {
                     responseType: "arraybuffer",
@@ -213,7 +205,6 @@ END:VCARD`;
                   console.error("⚠️ Failed to fetch alive image:", imgErr.message);
                 }
               } else {
-                // Local file path
                 if (fs.existsSync(aliveImg)) {
                   imageBuffer = fs.readFileSync(aliveImg);
                   console.log("✅ Alive image loaded from local path");
@@ -223,7 +214,6 @@ END:VCARD`;
               }
             }
 
-            // Send image or fallback to text
             if (imageBuffer) {
               await conn.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
                 image: imageBuffer,
@@ -233,14 +223,12 @@ END:VCARD`;
               await conn.sendMessage(ownerNumber[0] + "@s.whatsapp.net", { text: upMsg });
             }
 
-            // Send Meta AI contact card
             await conn.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
               contacts: {
                 displayName: botName,
                 contacts: [{ vcard }],
               },
             });
-
           } catch (err) {
             console.error("❌ Error sending startup messages:", err);
           }
@@ -268,21 +256,26 @@ END:VCARD`;
         config.AUTO_READ_STATUS === "true"
       ) {
         await conn.readMessages([mek.key]);
+        return; // ✅ Don't process status messages as commands
       }
 
       const m = sms(conn, mek);
       const from = mek.key.remoteJid;
-      const type = getContentType(mek.message);
 
       // ================= Parse Body =================
+      // ✅ FIX: Added imageMessage and videoMessage caption support
       let body = "";
       const contentType = getContentType(mek.message);
 
       if (contentType === "conversation") body = mek.message.conversation;
-      else if (contentType === "extendedTextMessage") body = mek.message.extendedTextMessage.text;
-      else if (contentType === "buttonsResponseMessage") body = mek.message.buttonsResponseMessage.selectedButtonId;
-      else if (contentType === "listResponseMessage") body = mek.message.listResponseMessage.singleSelectReply.selectedRowId;
+      else if (contentType === "extendedTextMessage") body = mek.message.extendedTextMessage?.text || "";
+      else if (contentType === "imageMessage") body = mek.message.imageMessage?.caption || "";
+      else if (contentType === "videoMessage") body = mek.message.videoMessage?.caption || "";
+      else if (contentType === "buttonsResponseMessage") body = mek.message.buttonsResponseMessage?.selectedButtonId || "";
+      else if (contentType === "listResponseMessage") body = mek.message.listResponseMessage?.singleSelectReply?.selectedRowId || "";
+      else if (contentType === "templateButtonReplyMessage") body = mek.message.templateButtonReplyMessage?.selectedId || "";
 
+      // ✅ FIX: isCmd now correctly uses the global prefix
       const isCmd = body.startsWith(prefix);
       const commandText = isCmd
         ? body.slice(prefix.length).trim().split(/ +/)[0].toLowerCase()
@@ -304,10 +297,13 @@ END:VCARD`;
         return conn.sendMessage(from, { text, ...extra }, { quoted: chama });
       };
 
+      // ✅ DEBUG LOG — remove after confirming commands work
+      if (body) console.log(`📩 From: ${senderNumber} | Body: "${body}" | isCmd: ${isCmd} | Command: "${commandText}"`);
+
       // ===== Load commands =====
       const events = require("./command");
 
-      // ===== BUTTON HANDLER (GLOBAL SAFE) =====
+      // ===== BUTTON HANDLER =====
       if (contentType === "buttonsResponseMessage") {
         const btnId = mek.message.buttonsResponseMessage.selectedButtonId;
         for (const plugin of events.commands) {
@@ -321,7 +317,25 @@ END:VCARD`;
         }
       }
 
+      // ===== REPLY HANDLERS =====
+      for (const handler of events.replyHandlers) {
+        try {
+          if (typeof handler.filter === "function" && handler.filter(mek, conn)) {
+            await handler.function(conn, mek, m, {
+              from, body, isCmd, command: commandText,
+              args, q, isGroup, sender, senderNumber,
+              botNumber2: jidNormalizedUser(conn.user.id),
+              botNumber, pushname, isMe, isOwner, reply,
+            });
+          }
+        } catch (e) {
+          console.error("[REPLY HANDLER ERROR]", e);
+        }
+      }
+
       // ===== COMMAND EXECUTION =====
+      if (!isCmd) return; // ✅ Skip non-commands early
+
       const cmd = events.commands.find((c) => {
         if (!c.pattern) return false;
         if (c.pattern.toLowerCase() === commandText) return true;
@@ -330,6 +344,7 @@ END:VCARD`;
       });
 
       if (cmd) {
+        console.log(`⚡ Executing command: "${commandText}"`);
         if (cmd.react) {
           await conn.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
         }
@@ -355,6 +370,8 @@ END:VCARD`;
           console.error("[PLUGIN ERROR]", e);
           reply("⚠️ An error occurred while executing the command.");
         }
+      } else {
+        console.log(`❓ Unknown command: "${commandText}"`);
       }
     });
 
@@ -379,8 +396,7 @@ setTimeout(() => {
         connectToWA();
       }
     }, 1000);
-    
-    // Timeout after 2 minutes
+
     setTimeout(() => {
       clearInterval(checkInterval);
       console.error("❌ Session file download timeout");
