@@ -34,7 +34,8 @@ const {
   getBuffer, getGroupAdmins, getRandom, h2k, isUrl, Json, runtime, sleep, fetchJson
 } = require('./lib/functions');
 const { File } = require('megajs');
-const { commands, replyHandlers } = require('./command');
+const { commands, replyHandlers: _replyHandlers } = require('./command');
+const replyHandlers = Array.isArray(_replyHandlers) ? _replyHandlers : [];
 
 const app = express();
 const port = process.env.PORT || 8000;
