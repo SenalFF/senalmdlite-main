@@ -16,7 +16,6 @@ const axios = require("axios");
 const express = require("express");
 const config = require("./config");
 const { sms } = require("./lib/msg");
-const { readEnv } = require("./lib/database");
 
 // ================= Owner =================
 const ownerNumber = [config.OWNER_NUMBER || "94769872326"];
