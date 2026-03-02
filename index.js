@@ -16,7 +16,6 @@ const axios = require("axios");
 const express = require("express");
 const config = require("./config");
 const { sms } = require("./lib/msg");
-const connectDB = require("./lib/mongodb");
 const { readEnv } = require("./lib/database");
 
 // ================= Owner =================
@@ -71,7 +70,7 @@ if (!fs.existsSync(credsFile)) {
       .on("error", (err) => {
         console.error("❌ Session download failed:", err.message);
         if (fs.existsSync(credsFile)) {
-          fs.unlinkSync(credsFile); // Remove corrupted file
+          fs.unlinkSync(credsFile);
         }
         process.exit(1);
       })
@@ -79,7 +78,7 @@ if (!fs.existsSync(credsFile)) {
       .on("error", (err) => {
         console.error("❌ Session file write failed:", err.message);
         if (fs.existsSync(credsFile)) {
-          fs.unlinkSync(credsFile); // Remove corrupted file
+          fs.unlinkSync(credsFile);
         }
         process.exit(1);
       });
@@ -117,7 +116,6 @@ async function connectToWA() {
       await new Promise(resolve => setTimeout(resolve, delay));
     }
 
-    await connectDB();
     const envConfig = await readEnv();
     const prefix = envConfig.PREFIX || ".";
 
