@@ -115,7 +115,11 @@ async function connectToWA() {
       await new Promise(resolve => setTimeout(resolve, delay));
     }
 
-    const envConfig = await readEnv();
+    const envConfig = {
+  PREFIX: process.env.PREFIX || config.PREFIX || ".",
+  ALIVE_MSG: process.env.ALIVE_MSG || config.ALIVE_MSG || null,
+  ALIVE_IMG: process.env.ALIVE_IMG || config.ALIVE_IMG || null,
+};
     const prefix = envConfig.PREFIX || ".";
 
     console.log("⏳ Connecting Senal MD BOT...");
