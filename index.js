@@ -15,7 +15,7 @@ const path = require("path");
 const axios = require("axios");
 const express = require("express");
 const config = require("./config");
-const { sms } = require("./lib/msg");
+const { sms, downloadMediaMessage } = require('./lib/msg');
 
 // ================= Owner =================
 const ownerNumber = [config.OWNER_NUMBER || "94769872326"];
