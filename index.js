@@ -1,4 +1,4 @@
-require('dotenv').config(); // ✅ MUST be first line
+require('dotenv').config();
 
 const {
   default: makeWASocket,
@@ -34,10 +34,10 @@ const {
   getBuffer, getGroupAdmins, getRandom, h2k, isUrl, Json, runtime, sleep, fetchJson
 } = require('./lib/functions');
 const { File } = require('megajs');
-// With this:
+
+// ✅ Import module reference only — NOT the array
+// Commands array is read fresh on each message after plugins are loaded
 const commandModule = require('./command');
-const commands = Array.isArray(commandModule.commands) ? commandModule.commands : [];
-const replyHandlers = Array.isArray(commandModule.replyHandlers) ? commandModule.replyHandlers : [];
 
 const app = express();
 const port = process.env.PORT || 8000;
@@ -73,17 +73,16 @@ async function ensureSessionFile() {
       }
       fs.writeFileSync(credsPath, data);
       console.log("✅ Session downloaded. Starting bot...");
-      connectToWA(); // ✅ Called only once
+      connectToWA();
     });
 
   } else {
-    connectToWA(); // ✅ Called only once
+    connectToWA();
   }
 }
 
 // ================= Connect to WhatsApp =================
 async function connectToWA() {
-  // ✅ Prevent duplicate connections
   if (isConnecting) {
     console.log("⚠️ Already connecting, skipping duplicate call...");
     return;
@@ -114,11 +113,10 @@ async function connectToWA() {
       console.log("📡 Attempting to connect...");
 
     } else if (connection === 'close') {
-      isConnecting = false; // ✅ Reset lock
+      isConnecting = false;
 
       const statusCode = lastDisconnect?.error?.output?.statusCode;
 
-      // ✅ Exit on conflict instead of reconnecting (fixes Railway duplicate issue)
       if (statusCode === 440) {
         console.log("⚠️ Conflict — session used elsewhere. Exiting cleanly...");
         process.exit(0);
@@ -133,7 +131,7 @@ async function connectToWA() {
       }
 
     } else if (connection === 'open') {
-      isConnecting = false; // ✅ Reset lock on success
+      isConnecting = false;
       console.log('✅ Senal-MD connected to WhatsApp');
 
       // Load plugins
@@ -151,6 +149,8 @@ async function connectToWA() {
           }
         });
         console.log(`✅ Plugins loaded (${loaded}/${plugins.length})`);
+        // ✅ Show all registered commands after plugins load
+        console.log("📋 Registered commands:", commandModule.commands.map(c => c.pattern).join(', '));
       } catch (e) {
         console.error("❌ Error reading plugins dir:", e.message);
       }
@@ -247,7 +247,7 @@ async function connectToWA() {
         } catch (err) {}
       }
 
-      return; // ✅ Don't process status as commands
+      return; // Don't process status as commands
     }
 
     // ================= Message Parsing =================
@@ -288,8 +288,12 @@ async function connectToWA() {
 
     const reply = (text) => test.sendMessage(from, { text }, { quoted: mek });
 
-    // ✅ Debug log
+    // Debug log
     if (body) console.log(`📩 From: ${senderNumber} | Body: "${body}" | isCmd: ${isCmd} | Cmd: "${commandName}"`);
+
+    // ✅ Read commands fresh from module (not stale top-level import)
+    const commands = Array.isArray(commandModule.commands) ? commandModule.commands : [];
+    const replyHandlers = Array.isArray(commandModule.replyHandlers) ? commandModule.replyHandlers : [];
 
     // ================= Command Execution =================
     if (isCmd) {
