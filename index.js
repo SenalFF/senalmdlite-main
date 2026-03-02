@@ -18,7 +18,7 @@ const {
   jidDecode,
   fetchLatestBaileysVersion,
   Browsers
-} = require('@whiskeysockets/baileys');
+} = require('fast-baileys');
 
 const fs = require('fs');
 const P = require('pino');
