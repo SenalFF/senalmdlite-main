@@ -1,24 +1,22 @@
+// command.js
 var commands = [];
-var replyHandlers = [];
 
 function cmd(info, func) {
-    const data = info;
+    var data = info;
     data.function = func;
 
-    // Default fields
+    data.pattern = (info.pattern || '').toLowerCase();
+    data.alias = info.alias || [];
+    data.react = info.react || '';
+    data.on = info.on || 'command'; // 'command', 'body', or 'number'
+
     if (!data.dontAddCommandList) data.dontAddCommandList = false;
-    if (!data.desc) data.desc = '';
-    if (!data.category) data.category = 'misc';
-    if (!data.filename) data.filename = "Not Provided";
+    if (!info.desc) info.desc = '';
     if (!data.fromMe) data.fromMe = false;
+    if (!info.category) data.category = 'misc';
+    if (!info.filename) data.filename = "Not Provided";
 
-    // Register reply-based handler if no pattern and has filter
-    if (!data.pattern && typeof data.filter === "function") {
-        replyHandlers.push(data);
-    } else {
-        commands.push(data);
-    }
-
+    commands.push(data);
     return data;
 }
 
@@ -27,6 +25,5 @@ module.exports = {
     AddCommand: cmd,
     Function: cmd,
     Module: cmd,
-    commands,
-    replyHandlers,
+    commands
 };
