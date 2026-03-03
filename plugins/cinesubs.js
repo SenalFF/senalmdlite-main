@@ -20,7 +20,7 @@ cmd(
 
       // 3. Call Cinesubz API
       const res = await axios.get(
-        `https://cinesubz-v3.vercel.app/api/search?q=${encodeURIComponent(q)}`
+        `https://cinesubz-xi.vercel.app/api/search?q=${encodeURIComponent(q)}`
       );
       const data = res.data;
 
