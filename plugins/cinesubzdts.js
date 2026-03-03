@@ -26,7 +26,7 @@ cmd(
       await test.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
       const res = await axios.get(
-        `https://cinesubz-v3.vercel.app/api/details?url=${encodeURIComponent(q)}`
+        `https://cinesubz-xi.vercel.app/api/details?url=${encodeURIComponent(q)}`
       );
       const d = res.data;
 
