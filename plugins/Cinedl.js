@@ -1,7 +1,7 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
-const CINEDL_API = "https://cinedl-three.vercel.app";
+const CINEDL_API = "https://cinedl-production.up.railway.app";
 
 cmd({
   pattern: "download",
